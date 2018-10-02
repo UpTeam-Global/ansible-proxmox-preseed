@@ -1,0 +1,49 @@
+#!/bin/bash
+
+################################################################################
+## grub options
+################################################################################
+
+#sed -i "s;quiet;quiet console=ttyS0;" /etc/default/grub
+sed -i 's,quiet splash,,' /etc/default/grub
+update-grub
+
+################################################################################
+## tweaks
+################################################################################
+
+## bashrc
+
+# color prompt
+sed -i 's,^#force_color_prompt,force_color_prompt,' /etc/skel/.bashrc /home/docker/.bashrc
+# add to root user, red prompt
+sed 's,01;32m,01;31m,' /etc/skel/.bashrc > /root/.bashrc
+
+################################################################################
+## Packages
+################################################################################
+
+## Latest kernel stack
+apt-get install -y --install-recommends linux-generic-hwe-16.04
+
+################################################################################
+## Ansible
+################################################################################
+apt -y install curl
+apt -y install apt-transport-https
+apt -y python-dev 
+apt -y python-pip
+
+#mkdir -p /root/.ssh
+#install -b -m 600 /dev/null /root/.ssh/authorized_keys
+
+#cat > /root/.ssh/authorized_keys << EOF
+#ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDW/aZsqSInaU3/qQS/6cOdIQSEUA3k8ytmnsLOczRtEM6yak+1j1aXHTd5X4+04tWdP5i0oTeS/RIaWIi1chXZkvv/Xf9ZdnVs81b/MdIlBe+dKhw2evEYi1buuoanXQ9nI0oijWVfsMzRN/7V1tUPW7qShtr5MRvxbKnfZ3+UFZJdSkZnDgJ3RUvMV+RLxE5+L2lyj9BOcDjKzWTWhJ315LRMiQvjF7Ri38XsoZdVRs0LCASaeLTRAN5jTZU5FNlHVNYoQvucNcqzMqot3PXB20nvkQXAqLqdWgeP+rxea82pT1qUP/8LeJp+ZJu7m0Oun9hW+gZqn0zAVikLaef3 lexa500@over9000
+#EOF
+
+################################################################################
+## Cleanup
+################################################################################
+
+apt-get clean
+#fstrim /

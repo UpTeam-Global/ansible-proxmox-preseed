@@ -1,0 +1,159 @@
+---
+- hosts: helper
+  tasks:
+    - name: Creates directory for ubuntu config on helper host
+      file:
+        path: /home/jenkins/web/public_html/preseed
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: 0755
+        force: yes
+    - name: Creates directory for centos config on helper host
+      file:
+        path: /home/jenkins/web/public_html/kickstart
+        state: directory
+        owner: jenkins
+        group: jenkins
+        mode: 0755
+        force: yes
+    - name: copy ubuntu config files to helper host
+      copy:
+        src: contrib/preseed/
+        dest: /home/jenkins/web/public_html/preseed
+        owner: jenkins
+        group: jenkins
+        mode: 0755
+        directory_mode: yes
+        force: yes
+
+    - name: copy centos config files to helper host
+      copy:
+        src: contrib/kickstart/
+        dest: /home/jenkins/web/public_html/kickstart
+        owner: jenkins
+        group: jenkins
+        mode: 0755
+        directory_mode: yes
+        force: yes
+
+- name: deploy virtual machines
+
+  hosts: localhost
+  gather_facts: false
+
+  handlers:
+
+  - name: sleep-short
+    pause:
+      seconds: 10
+
+  - name: sleep-long
+    pause:
+      seconds: 300
+
+  tasks:
+
+  - name: include vars
+    include_vars: 'vars.yml'
+
+  - name: create vms
+    proxmox_kvm:
+      api_user: "{{ api_user }}"
+      api_password: "{{ api_password }}"
+      api_host: "{{ api_host }}"
+      node: "{{ item.value.node }}"
+      name: "{{ item.key }}"
+      net: '{{ item.value.net | default(defaults.net) }}'
+      scsihw: '{{ item.value.scsihw | default(defaults.scsihw) }}'
+      virtio: '{{ item.value.virtio | default(defaults.virtio) }}'
+      cores: '{{ item.value.cores | default(defaults.cores) }}'
+      memory: '{{ item.value.memory_size | default(defaults.memory_size) }}'
+      vga: 'qxl'
+      ostype: '{{ item.value.ostype | default(defaults.ostype) }}'
+      agent: '{{ item.value.agent | default(defaults.agent) }}'
+      args: "{{ lookup('template', '{{ deployments[item.value.type].template }}') | replace('\n', '') }}"
+      state: present
+    with_dict: "{{ vms }}"
+    loop_control:
+      pause: 2
+    notify:
+      - sleep-short
+    register: created_vms_pve
+
+  - meta: flush_handlers
+    when: created_vms_pve.changed
+
+  - name: fetch deploy kernel
+    get_url:
+      url:  "{{ deployments[item.item.value.type].kernel }}"
+      dest: "/tmp/{{ item.item.value.type }}-{{ deployments[item.item.value.type].kernel | basename }}"
+    delegate_to: "{{ item.item.value.node }}"
+    with_items: "{{ created_vms_pve.results }}"
+    when: item.changed
+    no_log: True
+
+  - name: fetch deploy initrd
+    get_url:
+      url:  "{{ deployments[item.item.value.type].initrd }}"
+      dest: "/tmp/{{ item.item.value.type }}-{{ deployments[item.item.value.type].initrd | basename }}"
+    delegate_to: "{{ item.item.value.node }}"
+    with_items: "{{ created_vms_pve.results }}"
+    when: item.changed
+    no_log: True
+
+  - name: start vm deployment
+    proxmox_kvm:
+      api_user: "{{ api_user }}"
+      api_password: "{{ api_password }}"
+      api_host: "{{ api_host }}"
+      node: "{{ item.item.value.node }}"
+      name: "{{ item.item.key }}"
+      state: started
+    with_items: "{{ created_vms_pve.results }}"
+    notify:
+      - sleep-short
+    when: item.changed
+    no_log: True
+  
+  - meta: flush_handlers
+    when: created_vms_pve.changed
+  
+  - name: remove deploy args from vm
+    proxmox_kvm:
+      api_user: "{{ api_user }}"
+      api_password: "{{ api_password }}"
+      api_host: "{{ api_host }}"
+      node: "{{ item.item.value.node }}"
+      name: "{{ item.item.key }}"
+      delete: args
+    with_items: "{{ created_vms_pve.results }}"
+    when: item.changed
+    no_log: True
+
+  - name: wait for vm to stop after deploy
+    #async: 45
+    #poll: 0
+    proxmox_kvm:
+      api_user: "{{ api_user }}"
+      api_password: "{{ api_password }}"
+      api_host: "{{ api_host }}"
+      node: "{{ item.item.value.node }}"
+      name: "{{ item.item.key }}"
+      state: current
+    with_items: "{{ created_vms_pve.results }}"
+    register: vm_state
+    until: vm_state.status.find("stopped") != -1
+    delay: 30
+    retries: 100
+    
+  - name: Start vm after deploy
+    proxmox_kvm:
+      api_user: "{{ api_user }}"
+      api_password: "{{ api_password }}"
+      api_host: "{{ api_host }}"
+      node: "{{ item.item.value.node }}"
+      name: "{{ item.item.key }}"
+      state: started
+    with_items: "{{ created_vms_pve.results }}"
+ 

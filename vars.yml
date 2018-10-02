@@ -1,0 +1,31 @@
+---
+# proxmox_kvm options
+vm_number: '2'
+api_user: 'root@pam'
+# better use encrypted vault like
+api_password: 'your_api_password'
+api_host: 'proxmox-host.loc'
+#defaults:
+#  net: '{"net0":"virtio,bridge=vmbr30"}'
+#  cores: '4'
+#  memory_size: '4096'
+#  scsihw: 'virtio-scsi-pci'
+#  virtio: '{"virtio0":"storage05:16,cache=writeback,discard=on"}'
+#  ostype: 'l26'
+#  agent: '1'
+#  vga: 'qxl'
+
+# default deployment values
+deployments:
+  ubuntu:
+    kernel: 'http://helper/ubuntu_kernel/linux'
+    initrd: 'http://helper/ubuntu_kernel/initrd.gz'
+    template: 'deploy-args-ubuntu.j2'
+    preseed: 'http://jenkins.infra-web-01.bkz/preseed/server.seed'
+  centos:
+    kernel: 'http://ftp.hosteurope.de/mirror/centos.org/7/os/x86_64/isolinux/vmlinuz'
+    initrd: 'http://ftp.hosteurope.de/mirror/centos.org/7/os/x86_64/isolinux/initrd.img'
+    template: 'deploy-args-centos.j2'
+    stage2: 'http://ftp.hosteurope.de/mirror/centos.org/7/os/x86_64/'
+    repo: 'http://ftp.hosteurope.de/mirror/centos.org/7/os/x86_64/'
+    ks: 'http://helper/kickstart/server.ks'

@@ -1,0 +1,4 @@
+[proxmox]
+your.proxmox.address
+[helper]
+your.helper.address
